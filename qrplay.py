@@ -129,7 +129,19 @@ class Mode:
 
 current_mode = Mode.PLAY_SONG_IMMEDIATELY
 
-
+def spotify_login():
+    scope = 'user-library-read'
+    token = util.prompt_for_user_token(default_spotify_user, scope)
+    if token:
+        sp = spotipy.Spotify(auth=token)
+        logger.info("logged into Spotify")
+    else:
+        raise ValueError('Can\'t get Spotify token for ' + username)
+        logger.info('Can\'t get Spotify token for ' + username)
+        sp = None
+        logger.info('Not using a Spotify account')
+    return sp
+    
 def perform_request(url,type):
     # as with qrgen, this function has been expanded
     # to support two kinds of output: text and json, the latter turned into usable dicts
@@ -147,6 +159,69 @@ def perform_request(url,type):
 
 def perform_global_request(path):
     perform_request(base_url + '/' + path,None)
+
+
+def perform_room_transfer(newroom):
+    # commands:
+    ## <availabel>/join<currentzone>
+    ## /isolate = will isolate the playing room
+    ## /leave = will make room leave and stay alone
+    # TODO
+    # 1. check which is current room
+    # 2. is it active/playing?
+    # 3. /join new room to current room
+    # 4. /isolate intended room
+    # or
+    # 4. have the old room /leave the group
+    #
+
+    global current_device
+
+    response = requests.get(base_url + '/' + current_device + '/state')
+    state = response.json()['playbackState']
+
+    if state == 'PLAYING':
+        if newroom == current_device:
+            response = requests.get(base_url + '/' + current_device + '/isolate')
+            logger.info("Isolating playing " + current_device)
+        else:
+            response = requests.get(base_url + '/' + newroom + '/join/' + current_device)
+            logger.info("Joining the player " + newroom + " to " + current_device)
+            #response = requests.get(base_url + '/' + current_device + '/leave')
+        current_device = newroom
+        logger.info('current_device set to ' + current_device)
+        with open(".last-device", "w") as device_file:
+            device_file.write(current_device)
+    else:
+        switch_to_room(newroom)
+
+def find_current_device():
+    # when 0 is paused & 1&2 are together and playing, who is playing
+    ## 1:coordinator:state:playbackState
+    ## 1:coordinator:roomName
+    ## 1:members:0:state:playbackState
+    ### 1:members:0:roomName
+    ## 1:members:1:state:playbackState
+    ### 1:members:1:roomName
+    #
+    # when 2 is playing who is PLAYING
+    ## 2:coordinator:state:playbackState
+    ### 2:coordinator:roomName
+    ## 2:members:0:state:playbackState
+    ## 2:members:0:roomName
+
+    response = requests.get(base_url + '/zones')
+    respone=response.json()
+    entries = len(response.json())
+    entry = 0
+    while entry <= 3:
+        print(response.json()[entry]['coordinator']['coordinator'])
+        
+    for n in response:
+        print(response.json()[n]['coordinator']['coordinator'])
+    state = response.json()['playbackState']
+    # how many main zones?
+
 
 
 def perform_room_request(path):
@@ -208,12 +283,13 @@ def handle_command(qrcode):
     if qrcode == 'cmd:turntable':
         perform_room_request('linein/' + args.linein_source)
         perform_room_request('play')
-        phrase = 'I\'ve activated the turntable',10
+        phrase = 'I\'ve activated the turntable'
     elif qrcode.startswith('changezone:'):
         newroom = qrcode.split(":")[1]
         logger.info('Switching to '+ newroom)
-        switch_to_room(newroom)
-        phrase = 'Switching to ' + newroom,10
+        perform_room_transfer(newroom)
+        #switch_to_room(newroom)
+        phrase = 'Switching to ' + newroom
     elif qrcode.startswith('cmd:'):
         action = qrcode.split(":")[1]
         perform_room_request(action)
@@ -254,6 +330,7 @@ def handle_library_item(uri):
 
 def handle_spotify_item(uri):
     logger.info('PLAYING FROM SPOTIFY: ' + uri)
+    sp = spotify_login() # logs into spotify
 
     if current_mode == Mode.BUILD_QUEUE:
         action = 'queue'
@@ -268,6 +345,7 @@ def handle_spotify_item(uri):
 
 def handle_spotify_album(uri):
     logger.info('PLAYING ALBUM FROM SPOTIFY: ' + uri + '\n')
+    sp = spotify_login() # logs into spotify
     
     album_raw = sp.album(uri)
     album_name = album_raw["name"]
@@ -305,6 +383,7 @@ def handle_spotify_album(uri):
 
 def handle_spotify_playlist(uri):
     logger.info('PLAYING PLAYLIST FROM SPOTIFY: ' + uri + '\n')
+    sp = spotify_login() # logs into spotify
     sp_user = uri.split(":")[2]
     playlist_raw = sp.user_playlist(sp_user,uri)
     playlist_name = playlist_raw["name"]
@@ -344,6 +423,7 @@ def handle_spotify_playlist(uri):
 
 def handle_spotify_artist(uri):
     logger.info('PLAYING ARTIST FROM SPOTIFY: ' + uri + '\n')
+    sp = spotify_login() # logs into spotify
     artist_raw = sp.artist(uri)
     artist_name = artist_raw["name"]
 
@@ -360,8 +440,8 @@ def handle_spotify_artist(uri):
 
     artist_tracks = {}
 
-    # turning on shuffle before starting the new queue
-    action = 'shuffle/on'
+    # turning off shuffle before starting the new queue
+    action = 'shuffle/off'
     perform_room_request('{0}'.format(action))
     # when not able to add a track to the queue, spotipy resets the track # to 1
     # in this case I just handled the track nr separately with n
@@ -385,56 +465,16 @@ def handle_spotify_artist(uri):
             action = "queue"
             perform_room_request('spotify/{0}/{1}'.format(action, str(track_uri)))
 
-def handle_spotify_artist(uri):
-    artist_raw = sp.artist(uri)
-    artist_name = artist_raw["name"]
-
-    # clear the sonos queue
-    action = 'clearqueue'
-    perform_room_request('{0}'.format(action))
-
-    # getting top tracks and in order to avoid "cannot play track", set the country
-    ## https://spotipy.readthedocs.io/en/latest/#spotipy.client.Spotify.artist_top_tracks
-    artist_top_tracks = sp.artist_top_tracks(uri,country='DE')
-    
-    # plan is to get a collection of songs from all albums based on:
-    ## https://spotipy.readthedocs.io/en/latest/#spotipy.client.Spotify.artist_albums
-
-    artist_tracks = {}
-
-    # turning on shuffle before starting the new queue
-    action = 'shuffle/on'
-    perform_room_request('{0}'.format(action))
-    # when not able to add a track to the queue, spotipy resets the track # to 1
-    # in this case I just handled the track nr separately with n
-    n = 0
-    for track in artist_top_tracks['tracks']:
-        n = n + 1
-        track_number = n
-        track_name = track["name"]
-        track_uri = track["uri"]
-        artist_tracks.update({track_number: {}})
-        artist_tracks[track_number].update({"uri" : track_uri})
-        artist_tracks[track_number].update({"name" : track_name})
-        print(str(track_number) + ": " + str(track_name))
-        if track_number == int("1"):
-            # play track 1 immediately
-            action = 'now'
-            perform_room_request('spotify/{0}/{1}'.format(action, str(track_uri)))
-        else:
-            # add all remaining tracks to queue
-            action = "queue"
-            perform_room_request('spotify/{0}/{1}'.format(action, str(track_uri)))
-
 def handle_qrcode(qrcode):
     logger.info("Handling qrcode: " + str(qrcode))
     global last_qrcode
 
     # Ignore redundant codes, except for commands like "whatsong", where you might
     # want to perform it multiple times
-    if qrcode == last_qrcode and not qrcode.startswith('cmd:'):
-        print('IGNORING REDUNDANT QRCODE: ' + qrcode)
-        return
+    if qrcode == last_qrcode and not (qrcode.startswith('cmd:') or qrcode.startswith('changezone:')):
+        #print('IGNORING REDUNDANT QRCODE: ' + qrcode)
+        logger.info('IGNORING REDUNDANT QRCODE: ' + qrcode)
+    #    return
 
     print('HANDLING QRCODE: ' + qrcode)
 
@@ -452,6 +492,7 @@ def handle_qrcode(qrcode):
     elif qrcode.startswith('spotify:'):
         handle_spotify_item(qrcode)
     elif qrcode.startswith('changezone:'):
+        print('starting handle_command with ' + qrcode)
         handle_command(qrcode)
     else:
         handle_library_item(qrcode)
@@ -510,27 +551,17 @@ elif args.spotify_username:
         logger.info('Not using a Spotify account')
 else:
     # Set up Spotify access (comment this out if you don't want to generate cards for Spotify tracks)
-    scope = 'user-library-read'
-    token = util.prompt_for_user_token(default_spotify_user, scope)
-    if token:
-        sp = spotipy.Spotify(auth=token)
-        logger.info("logged into Spotify")
-    else:
-        raise ValueError('Can\'t get Spotify token for ' + username)
-        logger.info('Can\'t get Spotify token for ' + username)
-        sp = None
-        logger.info('Not using a Spotify account')
-
+    spotify_login() # logs into spotify
     perform_global_request('pauseall')
-    speak('Hello, I\'m qrocodile.')
+    #speak('Hello, I\'m qrocodile.')
 
     if not args.skip_load:
         # Preload library on startup (it takes a few seconds to prepare the cache)
         print('Indexing the library...')
-        speak('Please give me a moment to gather my thoughts.')
+        #speak('Please give me a moment to gather my thoughts.')
         perform_room_request('musicsearch/library/loadifneeded')
         print('Indexing complete!')
-        speak('I\'m ready now!')
+        #speak('I\'m ready now!')
 
     speak('Show me a card!')
     #load_defaults()
