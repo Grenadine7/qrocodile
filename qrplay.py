@@ -163,7 +163,8 @@ def perform_global_request(path):
 
 def perform_room_transfer(newroom):
     # commands:
-    ## <availabel>/join<currentzone>
+    ## <available>/join<currentzone>
+    ## <kicking out>/leave<zone to keep>
     ## /isolate = will isolate the playing room
     ## /leave = will make room leave and stay alone
     # TODO
@@ -195,7 +196,6 @@ def perform_room_transfer(newroom):
     else:
         switch_to_room(newroom)
 
-def find_current_device():
     # when 0 is paused & 1&2 are together and playing, who is playing
     ## 1:coordinator:state:playbackState
     ## 1:coordinator:roomName
@@ -210,17 +210,24 @@ def find_current_device():
     ## 2:members:0:state:playbackState
     ## 2:members:0:roomName
 
+def show_device_playing():
+    default_hostname = '192.168.188.12'
+    base_url = 'http://' + default_hostname + ':5005'
+
     response = requests.get(base_url + '/zones')
-    respone=response.json()
-    entries = len(response.json())
-    entry = 0
-    while entry <= 3:
-        print(response.json()[entry]['coordinator']['coordinator'])
-        
-    for n in response:
-        print(response.json()[n]['coordinator']['coordinator'])
-    state = response.json()['playbackState']
-    # how many main zones?
+    #entries = len(response.json())
+
+    for i, val in enumerate(response.json()):
+        index = str(i)
+        members_qty = str(val['members'].__len__())
+        coordinator_state = response.json()[i]['coordinator']['state']['playbackState']
+        coordinator_name = response.json()[i]['coordinator']['roomName']
+        print('coordinator ' + index + ' named ' + coordinator_name + ' with state ' + coordinator_state + ' has ' + members_qty + ' members.')
+        for j, val2 in enumerate(val['members']):
+            index = str(j)
+            member_state = str(val2['state']['playbackState'])
+            member_name = str(val2['roomName'])
+            print('member ' + index + ' called ' + member_name + ' with state ' + member_state + '\n')
 
 
 
