@@ -1,0 +1,13 @@
+    # when 0 is paused & 1&2 are together and playing, who is playing
+    ## 1:coordinator:state:playbackState
+    ## 1:coordinator:roomName
+    ## 1:members:0:state:playbackState
+    ### 1:members:0:roomName
+    ## 1:members:1:state:playbackState
+    ### 1:members:1:roomName
+    #
+    # when 2 is playing who is PLAYING
+    ## 2:coordinator:state:playbackState
+    ### 2:coordinator:roomName
+    ## 2:members:0:state:playbackState
+    ## 2:members:0:roomName

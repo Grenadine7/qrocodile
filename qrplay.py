@@ -162,33 +162,18 @@ def perform_global_request(path):
 
 
 def perform_room_transfer(newroom):
-    # commands:
-    ## <available>/join<currentzone>
-    ## <kicking out>/leave<zone to keep>
-    ## /isolate = will isolate the playing room
-    ## /leave = will make room leave and stay alone
-    # TODO
-    # 1. check which is current room
-    # 2. is it active/playing?
-    # 3. /join new room to current room
-    # 4. /isolate intended room
-    # or
-    # 4. have the old room /leave the group
-    #
-
     global current_device
 
     response = requests.get(base_url + '/' + current_device + '/state')
     state = response.json()['playbackState']
 
-    if state == 'PLAYING':
-        if newroom == current_device:
-            response = requests.get(base_url + '/' + current_device + '/isolate')
-            logger.info("Isolating playing " + current_device)
+    if state == 'PLAYING' or 'PAUSED_PLAYBACK':
+        if newroom.lower() == current_device.lower():
+            logger.info("Isolating device " + newroom)
+            isolate_device_playing(newroom)
         else:
             response = requests.get(base_url + '/' + newroom + '/join/' + current_device)
             logger.info("Joining the player " + newroom + " to " + current_device)
-            #response = requests.get(base_url + '/' + current_device + '/leave')
         current_device = newroom
         logger.info('current_device set to ' + current_device)
         with open(".last-device", "w") as device_file:
@@ -196,65 +181,17 @@ def perform_room_transfer(newroom):
     else:
         switch_to_room(newroom)
 
-    # when 0 is paused & 1&2 are together and playing, who is playing
-    ## 1:coordinator:state:playbackState
-    ## 1:coordinator:roomName
-    ## 1:members:0:state:playbackState
-    ### 1:members:0:roomName
-    ## 1:members:1:state:playbackState
-    ### 1:members:1:roomName
-    #
-    # when 2 is playing who is PLAYING
-    ## 2:coordinator:state:playbackState
-    ### 2:coordinator:roomName
-    ## 2:members:0:state:playbackState
-    ## 2:members:0:roomName
-
-def show_device_playing():
-    default_hostname = '192.168.188.12'
-    base_url = 'http://' + default_hostname + ':5005'
-
-    response = requests.get(base_url + '/zones')
-    #entries = len(response.json())
-
-    for i, val in enumerate(response.json()):
-        index = str(i)
-        members_qty = str(val['members'].__len__())
-        coordinator_state = response.json()[i]['coordinator']['state']['playbackState']
-        coordinator_name = response.json()[i]['coordinator']['roomName']
-        print('coordinator ' + index + ' named ' + coordinator_name + ' with state ' + coordinator_state + ' has ' + members_qty + ' members.')
-        for j, val2 in enumerate(val['members']):
-            index = str(j)
-            member_state = str(val2['state']['playbackState'])
-            member_name = str(val2['roomName'])
-            print('member ' + index + ' called ' + member_name + ' with state ' + member_state + '\n')
-
 def isolate_device_playing(device):
-    default_hostname = '192.168.188.12'
-    base_url = 'http://' + default_hostname + ':5005'
-
     response = requests.get(base_url + '/zones')
-
     for i, val in enumerate(response.json()):
-        all_rooms = []  # blank list
-        index = str(i)
-        members_qty = str(val['members'].__len__())
-        coordinator_state = response.json()[i]['coordinator']['state']['playbackState']
-        coordinator_name = response.json()[i]['coordinator']['roomName']
-        print('coordinator ' + index + ' named ' + coordinator_name + ' with state ' + coordinator_state + ' has ' + members_qty + ' members.')
-        for j, val2 in enumerate(val['members']):
-            index = str(j)
-            member_state = str(val2['state']['playbackState'])
-            member_name = str(val2['roomName'])
-            if member_name != device:
-                print('removing ' + member_name + ' from ' + device)
-                requests.get(base_url + '/' + member_name + '/leave/' + device)
-            else:
-                all_rooms.append(member_name)
-            print('member ' + index + ' called ' + member_name + ' with state ' + member_state + '\n')
-        print(all_rooms)
-
-
+        member_list = [] # create a list of members per coordinator
+        for i3,n in enumerate(response.json()[i]['members']):
+            member_list.append(str(response.json()[i]['members'][i3]['roomName']))
+        for i3, val3 in enumerate(member_list):
+            if member_list[i3].lower() != device.lower():
+                print('removed member ' + val3 + ' from ' + device)
+                requests.get(base_url + '/' + val3 + '/leave/' + device) # device will be the one left active
+    print(device + ' is now the single current device')
 
 def perform_room_request(path):
     #qdevice = urllib.quote(current_device)
@@ -321,7 +258,8 @@ def handle_command(qrcode):
         logger.info('Switching to '+ newroom)
         perform_room_transfer(newroom)
         #switch_to_room(newroom)
-        phrase = 'Switching to ' + newroom
+        #phrase = 'Switching to ' + newroom
+        phrase = None
     elif qrcode.startswith('cmd:'):
         action = qrcode.split(":")[1]
         perform_room_request(action)
@@ -371,6 +309,7 @@ def handle_spotify_item(uri):
         action = 'now'  # using 'now' as I could not find command clearqueueandplayalbum
     else:
         #action = 'clearqueueandplaysong'
+        perform_room_request('clearqueue')
         action = 'now'  # using 'now' as I could not find command clearqueueandplayalbum
 
     perform_room_request('spotify/{0}/{1}'.format(action, uri))
@@ -532,8 +471,8 @@ def handle_qrcode(qrcode):
     # Blink the onboard LED to give some visual indication that a code was handled
     # (especially useful for cases where there's no other auditory feedback, like
     # when adding songs to the queue)
-    if not args.debug_file:
-        blink_led()
+    #if not args.debug_file:
+        #blink_led()  # disabled as it needs to be fixed
         
     last_qrcode = qrcode
 
