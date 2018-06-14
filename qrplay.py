@@ -229,6 +229,31 @@ def show_device_playing():
             member_name = str(val2['roomName'])
             print('member ' + index + ' called ' + member_name + ' with state ' + member_state + '\n')
 
+def isolate_device_playing(device):
+    default_hostname = '192.168.188.12'
+    base_url = 'http://' + default_hostname + ':5005'
+
+    response = requests.get(base_url + '/zones')
+
+    for i, val in enumerate(response.json()):
+        all_rooms = []  # blank list
+        index = str(i)
+        members_qty = str(val['members'].__len__())
+        coordinator_state = response.json()[i]['coordinator']['state']['playbackState']
+        coordinator_name = response.json()[i]['coordinator']['roomName']
+        print('coordinator ' + index + ' named ' + coordinator_name + ' with state ' + coordinator_state + ' has ' + members_qty + ' members.')
+        for j, val2 in enumerate(val['members']):
+            index = str(j)
+            member_state = str(val2['state']['playbackState'])
+            member_name = str(val2['roomName'])
+            if member_name != device:
+                print('removing ' + member_name + ' from ' + device)
+                requests.get(base_url + '/' + member_name + '/leave/' + device)
+            else:
+                all_rooms.append(member_name)
+            print('member ' + index + ' called ' + member_name + ' with state ' + member_state + '\n')
+        print(all_rooms)
+
 
 
 def perform_room_request(path):
