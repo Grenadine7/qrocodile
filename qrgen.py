@@ -20,7 +20,7 @@ arg_parser = argparse.ArgumentParser(description='Generates an HTML page contain
 arg_parser.add_argument('--input', help='the file containing the list of commands and songs to generate')
 arg_parser.add_argument('--generate-images', action='store_true', help='generate an individual PNG image for each card')
 arg_parser.add_argument('--list-library', action='store_true', help='list all available library tracks')
-arg_parser.add_argument('--hostname', help='the hostname or IP address of the machine running `node-sonos-http-api`')
+arg_parser.add_argument('--hostname', '-localhost', help='the hostname or IP address of the machine running `node-sonos-http-api`')
 arg_parser.add_argument('--spotify-username', help='the username used to set up Spotify access (only needed if you want to generate cards for Spotify tracks)')
 arg_parser.add_argument('--zones', action='store_true', help='generate out/zones.html with cards for all available Sonos Zones')
 arg_parser.add_argument('--commands', action='store_true', help='generate out/commands.html with cards for all commands defined in commands_cards.txt')
@@ -79,7 +79,7 @@ def set_defaults(): # collect 3 items to use with qrplay: spotify username, node
   sonoszonesavail=[] #list
   for n,val in enumerate(rooms_json):
     sonoszonesavail.append(rooms_json[n]['coordinator']['roomName'])
-  print("\nList of Rooms/Zones: {} \n").format(sonoszonesavail)
+  print(("\nList of Rooms/Zones: {} \n").format(sonoszonesavail))
   defaults.update({"default_room" : input("Default Sonos Zone/Room: ")})
   current_path = os.getcwd()
   output_file_defaults = os.path.join(current_path,"my_defaults.txt")
@@ -124,6 +124,7 @@ def get_zones():
   sonoszonesavail=[] #list
   sonosarturl = 'https://raw.githubusercontent.com/google/material-design-icons/master/av/drawable-xxxhdpi/ic_volume_up_black_48dp.png'
   sonosarturl = 'https://d21buns5ku92am.cloudfront.net/61071/images/181023-sonos-logo-black-b45ff7-original-1443493203.png'
+
   
   for n,val in enumerate(rooms_json):
     sonoszonesavail.append(rooms_json[n]['coordinator']['roomName'])
@@ -331,7 +332,8 @@ def process_spotify_playlist(uri, index):
 
 
 def process_library_track(uri, index):
-    track_json = perform_request(base_url + '/musicsearch/library/metadata/' + uri,'txt')
+    print(base_url + '/spotify/now/' + uri)
+    track_json = perform_request(base_url + '/spotify/now' + uri,'txt')
     track = json.loads(track_json)
     #print(track)
 
