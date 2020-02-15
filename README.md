@@ -7,6 +7,7 @@ A kid-friendly system for controlling Sonos with QR codes.
 This is a fork of the *qrocodile* project originally developed by https://github.com/chrispcampbell
 
 Changes to the original:
+* updated URL structure for access to spotify content via Sonos API
 * support for Spotify **Albums** & **Playlists** & **Artists** (using the Sonos Queue)
 * generation of cards for the Sonos Zones (Rooms) available on your network
 * reliance on a my_defaults.txt file containing custom defaults for Sonos Room, Spotify User and node-sonos host
@@ -192,17 +193,18 @@ If you want to use your own `qrocodile` as a standalone thing (not attached to a
 ```
 [Unit]
 Description=qrplay
-After=network.target node-sonos-http-api.service
+After=network.target qrplay.service
 
 [Service]
 Type=simple
 Restart=always
+RestartSec=1
 PIDFile=/run/qrplay.pid
-#ExecStart=/home/pi/scripts/qrplay.sh
-ExecStart=/usr/bin/python3 /home/pi/git/qrocodile/qrplay.py
-WorkingDirectory=/home/pi/git/qrocodile/
+#if necessary change path 
+ExecStart=/usr/bin/python3 /home/pi/qrocodile/qrplay.py 
+WorkingDirectory=/home/pi/qrocodile/
 User=pi
-Environment="SPOTIPY_CLIENT_ID=<your spotify client id>" "SPOTIPY_CLIENT_SECRET=<your spotify client secret>"
+Environment="SPOTIPY_CLIENT_ID=<your spotify client id>" "SPOTIPY_CLIENT_SECRET=<your spotify client secret>" "SPOTIPY_REDIRECT_URI=<yout redirect URI>"
 
 [Install]
 WantedBy=multi-user.target
@@ -214,24 +216,31 @@ then run
 % systemctl enable qrplay.service
 ```
 
-#### 5.2 node-sonos-http-api
-
-It is possible to keep this node server running on boot and restart if it stops working using [forever](https://github.com/foreverjs/forever). Here's part of a /etc/init.d/node-sonos-http-api file that starts the node server using forever.
-
+#### 5.2 node-sonos-http-api using systemd
+Here's a **sonos-api.service** systemd unit file:
 ```
-...
-APPLICATION_PATH="/home/pi/git/node-sonos-http-api/server.js"
-PIDFILE="/var/run/$NAME.pid"
-...
-    forever \
-      --pidFile $PIDFILE \
-      -a \
-      -l $LOGFILE \
-      --minUptime $MIN_UPTIME \
-      --spinSleepTime $SPIN_SLEEP_TIME \
-      start $APPLICATION_PATH 2>&1 > /dev/null &
-...
+[Unit]
+Description=Sonos HTTP API Daemon
+After=syslog.target network.target
+
+[Service]
+Type=simple
+
+#if necessary change path 
+ExecStart=/usr/bin/node /home/pi/node-sonos-http-api/server.js
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
 ```
+
+then run
+```
+% sudo systemctl reload-daemon
+% sudo systemctl enable sonos-api.service
+```
+
 
 #### 5.3 generate zone cards on boot
 
