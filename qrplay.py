@@ -76,7 +76,7 @@ def load_defaults():
     global default_room
     global default_spotify_user
     global default_hostname
-    default_room=defaults['default_room']
+    default_room='Kueche' #['default_room']
     default_spotify_user = defaults['default_spotify_user']
     default_hostname = defaults['default_hostname']
     check_node_sonos_http_api()
@@ -106,7 +106,7 @@ else:
 # setting the language code and volume for announcements
 announcementlang = "en-gb" # see https://github.com/chrispcampbell/node-sonos-http-api/tree/qrocodile
 # 40 is way too loud
-announcementvolume = 10
+announcementvolume = 20
 
 # Load the most recently used device, if available, otherwise fall back on the `default-device` argument
 try:
@@ -136,11 +136,11 @@ def perform_request(url,type):
     logger.info("url= " + str(url))
     response = requests.get(url)
     if type == "txt":
-    	result = response.text
+        result = response.text
     elif type == "json":
-    	result = response.json()
+        result = response.json()
     else:
-    	result = response.text
+        result = response.text
     #print(result)
     return result
 
@@ -176,29 +176,29 @@ def speak(phrase):
 
 # Causes the onboard green LED to blink on and off twice.  (This assumes Raspberry Pi 3 Model B; your
 # mileage may vary.)
-def blink_led():
-    duration = 0.15
+#def blink_led():
+#    duration = 0.15
 
-    def led_off():
-	#subprocess.call("echo 0 > /sys/class/leds/led0/brightness", shell=True)
-        subprocess.call("echo 1 | sudo tee /sys/class/leds/led0/brightness", shell=True)
+#    def led_off():
+    #subprocess.call("echo 0 > /sys/class/leds/led0/brightness", shell=True)
+#        subprocess.call("echo 1 | sudo tee /sys/class/leds/led0/brightness", shell=True)
 
-    def led_on():
+#    def led_on():
         #subprocess.call("echo 1 > /sys/class/leds/led0/brightness", shell=True)
-        subprocess.call("echo 0 | sudo tee /sys/class/leds/led0/brightness", shell=True)
+#        subprocess.call("echo 0 | sudo tee /sys/class/leds/led0/brightness", shell=True)
 
     # Technically we only need to do this once when the script launches
     #subprocess.call("echo none > /sys/class/leds/led0/trigger", shell=True)
-    subprocess.call("echo none | tee /sys/class/leds/led0/trigger", shell=True)
+#    subprocess.call("echo none | tee /sys/class/leds/led0/trigger", shell=True)
 
 
-    led_on()
-    sleep(duration)
-    led_off()
-    sleep(duration)
-    led_on()
-    sleep(duration)
-    led_off()
+#    led_on()
+#    sleep(duration)
+#    led_off()
+#    sleep(duration)
+#    led_on()
+#    sleep(duration)
+#    led_off()
 
 def handle_command(qrcode):
     global current_mode
@@ -249,7 +249,7 @@ def handle_library_item(uri):
     else:
         action = 'playsongfromhash'
 
-    perform_room_request('musicsearch/library/{0}/{1}'.format(action, uri))
+    perform_room_request('spotify/now/{0}/{1}'.format(action, uri))
 
 
 def handle_spotify_item(uri):
@@ -459,8 +459,8 @@ def handle_qrcode(qrcode):
     # Blink the onboard LED to give some visual indication that a code was handled
     # (especially useful for cases where there's no other auditory feedback, like
     # when adding songs to the queue)
-    if not args.debug_file:
-        blink_led()
+   # if not args.debug_file:
+   #     blink_led()
         
     last_qrcode = qrcode
 
